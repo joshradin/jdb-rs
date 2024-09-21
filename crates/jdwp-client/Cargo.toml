@@ -1,0 +1,17 @@
+[package]
+name = "jdwp-client"
+description = "Provides a basic implementation over a jdwp client"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+categories.workspace = true
+
+[dependencies]
+jdwp-types = { version = "0.0.0", path = "../jdwp-types" }
+
+[dependencies.tokio]
+version = "1.40.0"
+features = ["io-util", "net", "rt"]
