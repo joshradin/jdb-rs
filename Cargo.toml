@@ -9,8 +9,12 @@ authors = ["Joshua Radin <joshradin@github.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 rust-version = "1.80.0"
+version = "0.0.0"
 repository = "https://github.com/joshradin/jdwp-rs"
 categories = [
     "java",
     "debugging"
 ]
+
+[workspace.dependencies]
+thiserror = "1.0.63"
