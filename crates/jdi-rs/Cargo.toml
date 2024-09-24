@@ -1,0 +1,13 @@
+[package]
+name = "jdi-rs"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+categories.workspace = true
+
+[dependencies]
+jdwp-client = { version = "0.0.0", path = "../jdwp-client" }
+jdwp-types = { version = "0.0.0", path = "../jdwp-types" }

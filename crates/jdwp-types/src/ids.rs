@@ -116,7 +116,6 @@ impl<T: Identifiable> Id<T> {
     pub const fn new(id: u64) -> Self {
         Id(id, PhantomData)
     }
-
     /// Gets the ids
     pub const fn get(&self) -> u64 {
         self.0
