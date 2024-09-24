@@ -12,3 +12,4 @@ categories.workspace = true
 
 [dependencies]
 thiserror = { workspace = true }
+bitfield = { workspace = true }

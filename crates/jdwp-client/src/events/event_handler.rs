@@ -164,7 +164,7 @@ mod tests {
             Result::<_, Infallible>::Ok(())
         };
         tx.send(()).unwrap();
-        let fut = func.handle_event(SuspendPolicy::All, Event::VmDeath);
+        let fut = func.handle_event(SuspendPolicy::All, Event::VmDisconnected);
         fut.await.expect("Failed to receive event");
     }
 
@@ -173,14 +173,14 @@ mod tests {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
 
         let rx = Arc::new(Mutex::new(rx));
-        let mut func = handle_event(|event: Event| async move {
+        let mut func = handle_event(|suspend_policy: SuspendPolicy, event: Event| async move {
             let mut guard = rx.lock().await;
             let _ = guard.recv().await;
             Result::<_, Infallible>::Ok(())
         });
         tx.send(()).unwrap();
 
-        let fut = func.handle_event(SuspendPolicy::All, Event::VmDeath);
+        let fut = func.handle_event(SuspendPolicy::All, Event::VmDisconnected);
         fut.await.expect("Failed to receive event");
     }
 }

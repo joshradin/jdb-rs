@@ -28,20 +28,20 @@ pub struct RawPacketSink(#[pin] FramedWrite<OwnedWriteHalf, RawCodec>);
 impl Sink<RawCommandPacket> for RawPacketSink {
     type Error = Error;
 
-    #[instrument(level="trace", ret, skip_all)]
+
     fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Sink::<RawCommandPacket>::poll_ready(self.project().0, cx)
     }
-    #[instrument(level="trace", ret, skip(self))]
+
     fn start_send(mut self: Pin<&mut Self>, item: RawCommandPacket) -> Result<(), Self::Error> {
         Sink::<RawCommandPacket>::start_send(self.project().0, item)
     }
-    #[instrument(level="trace", ret, skip_all)]
+
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
 
         Sink::<RawCommandPacket>::poll_flush(self.project().0, cx)
     }
-    #[instrument(level="trace", ret, skip_all)]
+
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Sink::<RawCommandPacket>::poll_close(self.project().0, cx)
     }

@@ -10,22 +10,19 @@ repository.workspace = true
 categories.workspace = true
 
 [dependencies]
-bitfield = "0.17.0"
-futures-core = "0.3.30"
-futures-sink = "0.3.30"
-futures-util = { version = "0.3.30", features = ["sink"] }
+bitfield = { workspace = true }
+futures-core = { workspace = true }
+futures-sink = { workspace = true }
+futures-util = { workspace = true, features = ["sink"] }
 jdwp-types = { version = "0.0.0", path = "../jdwp-types" }
-pin-project = "1.1.5"
-tokio-stream = "0.1.16"
-tokio-util = { version = "0.7.12", features = ["io", "net", "codec"] }
-tracing = "0.1.40"
-thiserror = "1.0.64"
-bytes = "1.7.2"
+pin-project = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true, features = ["io", "net", "codec"] }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+bytes = { workspace = true }
+paste = { workspace = true }
+tokio={ workspace = true, features = ["io-util", "net", "rt", "sync"] }
 
-[dependencies.tokio]
-version = "1.40.0"
-features = ["io-util", "net", "rt", "sync"]
-
-[dev-dependencies.tokio]
-version = "1.40.0"
-features = ["io-util", "net", "rt", "sync", "test-util", "macros"]
+[dev-dependencies]
+tokio={ workspace = true, features = ["io-util", "net", "rt", "sync", "test-util", "macros"] }

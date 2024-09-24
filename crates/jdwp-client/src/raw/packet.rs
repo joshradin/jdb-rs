@@ -2,7 +2,7 @@ use bitfield::bitfield;
 use bytes::Bytes;
 use private::Sealed;
 
-pub const MAX_PACKET_LENGTH: usize = 1 << 14;
+pub const MAX_PACKET_LENGTH: usize = 1 << 22;
 pub const MIN_PACKET_LENGTH: usize = size_of::<u32>() * 2 + size_of::<u8>() + size_of::<u16>();
 
 bitfield! {

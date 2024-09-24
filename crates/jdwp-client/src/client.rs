@@ -1,4 +1,4 @@
-use crate::codec::{JdwpCodec, JdwpDecoder};
+use crate::codec::{JdwpCodec, JdwpDecoder, JdwpEncoder};
 use crate::events::{to_events, EventHandler, Events, NotAnEventError};
 use crate::events::{Event, OwnedEventHandler};
 use crate::id_sizes::IdSizes;
@@ -22,18 +22,19 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::{Mutex, RwLock};
+use tokio::sync::mpsc::error::TryRecvError;
 use tokio::task::{JoinHandle, JoinSet};
 use tokio_util::codec::{FramedRead, FramedWrite};
-use tracing::{error, error_span, instrument, trace, warn, Instrument};
+use tracing::{debug, error, error_span, instrument, trace, warn, Instrument, Span};
 
 use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::sync::oneshot::Sender as OneshotSender;
+use crate::commands::{Dispose, IdSizes as IdSizesCommand};
 
 static JDWP_HANDSHAKE: &[u8; 14] = b"JDWP-Handshake";
 
 /// A non-blocking jdwp client
 pub struct JdwpClient {
-    id_sizes: IdSizes,
     tasks: JoinSet<()>,
     event_handlers: Arc<RwLock<Vec<OwnedEventHandler<Error>>>>,
     raw_packet_sink: Mutex<RawPacketSink>,
@@ -42,6 +43,7 @@ pub struct JdwpClient {
     one_shots: Arc<RwLock<HashMap<u32, OneshotSender<RawReplyPacket>>>>,
 }
 
+
 impl JdwpClient {
     /// Creates a new jdwp client over a tcp stream
     pub async fn create(stream: TcpStream) -> io::Result<Self> {
@@ -49,21 +51,33 @@ impl JdwpClient {
         create_client(input, output).await
     }
 
+    /// Add an event handler for when events are received from the targeted JVM
     pub async fn on_event<E: EventHandler<Err = io::Error> + Sync>(&mut self, event_handler: E) {
         let mut event_handlers = self.event_handlers.write().await;
         event_handlers.push(OwnedEventHandler::new(event_handler))
     }
 
+    /// Send a command to the java virtual machine, receiving a future that eventually resolves to a reply
+    #[instrument(skip_all, fields(id))]
     pub async fn send<T: JdwpCommand>(&self, command: T) -> Result<T::Reply, io::Error> {
-        let mut buffer = BytesMut::new();
-        command.encode(&*self.codec.read().await, &mut buffer);
+        let encoded = {
+            let codec = self.codec.read().await;
+            let mut encoder = JdwpEncoder::new(&*codec);
+            command.encode(&mut encoder);
+            encoder.data.freeze()
+        };
+
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
-        let raw = RawCommandPacket::new_command(id, T::command_data(), buffer.freeze());
+        let span = Span::current();
+        span.record("id", id);
+        let raw = RawCommandPacket::new_command(id, T::command_data(), encoded);
         let (tx, rx) = tokio::sync::oneshot::channel::<RawReplyPacket>();
         self.one_shots.write().await.insert(id, tx);
+        trace!("one-shot for command {id} is ready, sending raw command {raw:?}");
         self.raw_packet_sink.lock().await.send(raw).await?;
 
         let reply = rx.await.map_err(|e| Error::new(ErrorKind::BrokenPipe, e))?;
+        trace!("got raw reply packet: {reply:?}");
 
         let codec = self.codec.read().await;
         let mut decoder = JdwpDecoder::new(&*codec, reply.data().clone());
@@ -71,7 +85,15 @@ impl JdwpClient {
         let reply = decoder
             .get::<T::Reply>()
             .map_err(|e| Error::new(ErrorKind::InvalidData, e.to_string()))?;
+        trace!("finished decoding reply {id}");
         Ok(reply)
+    }
+
+    #[instrument(skip_all)]
+    pub async fn dispose(mut self) -> Result<(), Error> {
+        self.send(Dispose).await?;
+        trace!("successfully disposed of client");
+        Ok(())
     }
 }
 
@@ -104,7 +126,10 @@ async fn create_client(
             let span = error_span!("packet-recv-loop");
             let _enter = span.enter();
             while let Some(raw_event) = raw_stream.next().await {
-                let raw_event = raw_event.expect("getting packet failed");
+                let Ok(raw_event) = raw_event else {
+                    one_shots.write().await.clear();
+                    panic!("getting next packet failed");
+                };
                 let codec = codec.read().await;
                 match raw_event {
                     AnyRawPacket::Command(command) => {
@@ -132,15 +157,28 @@ async fn create_client(
         });
     }
 
-    let client = JdwpClient {
-        id_sizes: Default::default(),
+    let mut client = JdwpClient {
         tasks: join_set,
-        event_handlers: event_handlers,
+        event_handlers,
         raw_packet_sink: Mutex::from(raw_sink),
         next_id: AtomicU32::new(1),
         codec,
         one_shots,
     };
+
+    let id_sizes = client.send(IdSizesCommand).await?;
+    let mut codec = client.codec.write()
+                      .await;
+    let new_id_sizes = IdSizes::new(
+        id_sizes.object_id_size as usize,
+        id_sizes.method_id_size as usize,
+        id_sizes.field_id_size as usize,
+        id_sizes.frame_id_size as usize,
+    );
+    debug!("new id sizes: {new_id_sizes:#?}");
+    *codec.id_sizes_mut() = new_id_sizes;
+    drop(codec);
+
     Ok(client)
 }
 
@@ -150,12 +188,29 @@ fn event_handling_loop(
 ) -> impl Future<Output = ()> + Sized {
     async move {
         let mut buffered = VecDeque::<Events>::new();
-        while let Some(events) = event_rx.recv().await {
-            let event_handlers = event_handlers.read().await;
-            if event_handlers.is_empty() {
+        loop {
+            if buffered.is_empty() {
+                let Some(events) = event_rx.recv().await else {
+                    break;
+                };
                 buffered.push_back(events);
             } else {
-                let mut join_set = JoinSet::new();
+                match event_rx.try_recv() {
+                    Ok(events) => {
+                        buffered.push_back(events);
+                    }
+                    Err(TryRecvError::Empty) => {
+                    }
+                    Err(TryRecvError::Disconnected) => {
+                        break;
+                    }
+                }
+            }
+
+
+            let mut join_set = JoinSet::new();
+            let event_handlers = event_handlers.read().await;
+            if !event_handlers.is_empty() {
                 for buffered in buffered.drain(..) {
                     for event_handler in &*event_handlers {
                         for event in &buffered.events {
@@ -167,23 +222,14 @@ fn event_handling_loop(
                         }
                     }
                 }
-                for event_handler in &*event_handlers {
-                    for event in &events.events {
-                        join_set.spawn(
-                            event_handler
-                                .clone()
-                                .handle_event(events.policy, event.clone()),
-                        );
-                    }
-                }
-                if let Err(e) = join_set
-                    .join_all()
-                    .await
-                    .into_iter()
-                    .collect::<Result<Vec<_>, _>>()
-                {
-                    error!("error handling events: {}", e);
-                }
+            }
+            if let Err(e) = join_set
+                .join_all()
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+            {
+                error!("error handling events: {}", e);
             }
         }
     }

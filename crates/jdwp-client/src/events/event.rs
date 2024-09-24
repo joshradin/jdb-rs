@@ -198,8 +198,7 @@ impl JdwpDecodable for Event {
                     .and_then(|b| Ok(TypeTag::try_from(b)?))?,
                 type_id: decoder.get()?,
                 signature: decoder.get()?,
-                status: decoder.get::<Byte>()
-                               .and_then(|b| Ok(ClassStatus::try_from(b)?))?,
+                status: decoder.get::<ClassStatus>()?,
             },
             EventKind::ClassUnload => Event::ClassUnload {
                 request_id: decoder.get()?,

@@ -1,5 +1,6 @@
 //! constants
 
+use bitfield::bitfield;
 use crate::macros::tagged_type;
 
 tagged_type! {
@@ -187,17 +188,15 @@ tagged_type! {
     }
 }
 
-tagged_type! {
-    /// Status of class
-    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-    pub enum ClassStatus {
-        /// Nothing in the VM was suspended
-        None = 0,
-        /// Only the thread where the event started is suspended
-        EventThread = 1,
-        /// All threads are suspended
-        All = 2
-    }
+bitfield! {
+    #[derive(Clone, Copy)]
+    pub struct ClassStatus(u32);
+    impl Debug;
+
+    pub verified, _: 0;
+    pub prepared, _: 1;
+    pub initialized, _: 2;
+    pub error, _: 3;
 }
 
 tagged_type! {

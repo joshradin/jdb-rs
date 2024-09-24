@@ -1,5 +1,7 @@
+use std::any::type_name;
 use thiserror::Error;
 use std::cmp::Ordering;
+use std::fmt::{Debug, Formatter, Pointer};
 use std::marker::PhantomData;
 
 /// Uniquely identifies an object in the target VM.
@@ -102,8 +104,10 @@ impl PartialOrd for TaggedObjectId {
 }
 
 /// Uniquely identifies some *thing* in the target VM
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Id<T: Identifiable>(u64, PhantomData<T>);
+
+
 
 impl<T: Identifiable> Id<T> {
     /// Creates a new [Id]. Since the maximum byte size of an [Id] is an u64, we can always use that as
@@ -112,12 +116,23 @@ impl<T: Identifiable> Id<T> {
     pub const fn new(id: u64) -> Self {
         Id(id, PhantomData)
     }
+
+    /// Gets the ids
+    pub const fn get(&self) -> u64 {
+        self.0
+    }
 }
 
 impl<T: Identifiable> JdwpValue for Id<T> {
 }
 
-
+impl<T: Identifiable + Debug> Debug for Id<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple(format!("Id<{}>", type_name::<T>()).as_str())
+            .field(&self.0)
+            .finish()
+    }
+}
 
 
 macro_rules! type_to_tagged {

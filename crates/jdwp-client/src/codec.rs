@@ -1,12 +1,12 @@
 //! The codec for encoding and decoding packets, using [tokio-util]'s [Encoder] and [Decoder] traits
 
+use crate::id_sizes::IdSizes;
+use crate::packet::JdwpCommand;
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use jdwp_types::*;
 use std::error::Error;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
-use crate::id_sizes::IdSizes;
-use crate::packet::JdwpCommand;
-use bytes::{Buf, Bytes, BytesMut};
-use jdwp_types::*;
 use thiserror::Error;
 use tokio_util::codec::{Decoder, Encoder};
 use tracing::trace;
@@ -18,15 +18,23 @@ pub struct JdwpCodec {
 }
 
 impl JdwpCodec {
+    pub fn new(id_sizes: IdSizes) -> Self {
+        Self { id_sizes }
+    }
+
     pub fn id_sizes(&self) -> IdSizes {
         self.id_sizes
+    }
+
+    pub(crate) fn id_sizes_mut(&mut self) ->&mut IdSizes {
+        &mut self.id_sizes
     }
 }
 
 /// Encodable into bytes
 pub trait JdwpEncodable {
     /// Encodes this into a buffer
-    fn encode(&self, codec: &JdwpCodec, buffer: &mut BytesMut) {}
+    fn encode(&self, encoder: &mut JdwpEncoder) {}
 }
 
 /// Decodable from a byte buffer
@@ -46,6 +54,11 @@ impl JdwpDecodable for Byte {
         Ok(decoder.data.get_u8())
     }
 }
+impl JdwpEncodable for Byte {
+    fn encode(&self, encoder: &mut JdwpEncoder) {
+        encoder.data.put_u8(*self);
+    }
+}
 
 impl JdwpDecodable for Int {
     type Err = DecodeJdwpDataError;
@@ -58,6 +71,23 @@ impl JdwpDecodable for Int {
     }
 }
 
+impl JdwpDecodable for ClassStatus {
+    type Err = DecodeJdwpDataError;
+
+    fn decode(decoder: &mut JdwpDecoder) -> Result<Self, Self::Err> {
+        if decoder.data.len() < 4 {
+            return Err(DecodeJdwpDataError::NotEnoughBytes);
+        }
+        let data = decoder.data.get_u32();
+        Ok(ClassStatus(data))
+    }
+}
+
+impl JdwpEncodable for Int {
+    fn encode(&self, encoder: &mut JdwpEncoder) {
+        encoder.data.put_i32(*self);
+    }
+}
 impl JdwpDecodable for Long {
     type Err = DecodeJdwpDataError;
 
@@ -68,7 +98,11 @@ impl JdwpDecodable for Long {
         Ok(decoder.data.get_i64())
     }
 }
-
+impl JdwpEncodable for Long {
+    fn encode(&self, encoder: &mut JdwpEncoder) {
+        encoder.data.put_i64(*self);
+    }
+}
 impl JdwpDecodable for TaggedObjectId {
     type Err = DecodeJdwpDataError;
 
@@ -86,6 +120,14 @@ impl JdwpDecodable for std::string::String {
         decoder.data.advance(len);
         let string = std::string::String::from_utf8(bytes)?;
         Ok(string)
+    }
+}
+
+impl JdwpEncodable for std::string::String {
+    fn encode(&self, encoder: &mut JdwpEncoder) {
+        let len = self.len();
+        encoder.data.put_i32(len as i32);
+        encoder.data.put_slice(self.as_ref());
     }
 }
 
@@ -131,7 +173,7 @@ impl JdwpDecodable for Value {
     }
 }
 
-macro_rules! decode_id {
+macro_rules! encdec_id {
     (
         $(
             $($id_type:ty),*: $id_size:ident
@@ -154,12 +196,22 @@ macro_rules! decode_id {
                         Ok(Id::new(decoded))
                     }
                 }
+
+                impl JdwpEncodable for $id_type {
+                    fn encode(&self, encoder: &mut JdwpEncoder) {
+                        let len: usize = encoder.codec.id_sizes.$id_size();
+                        let to_bytes = self.get().to_be_bytes();
+                        let slice = &to_bytes[(8 - len)..][..len];
+                        encoder.data.extend_from_slice(slice);
+                    }
+
+                }
             )*
         )*
     };
 }
 
-decode_id! {
+encdec_id! {
     ObjectId, ThreadId, ThreadGroupId, StringId, ClassLoaderId, ClassObjectId,
         ArrayId, ReferenceTypeId, ClassId, InterfaceId, ArrayTypeId: object_id_size;
     MethodId: method_id_size;
@@ -216,4 +268,59 @@ pub enum DecodeJdwpDataError {
     IllegalByteTag(#[from] UnknownTagError<u8>),
     #[error(transparent)]
     Utf8DecodeError(#[from] FromUtf8Error)
+}
+
+
+#[derive(Debug)]
+pub struct JdwpEncoder<'a> {
+    pub(crate) codec: &'a JdwpCodec,
+    pub(crate) data: BytesMut,
+}
+
+impl<'a> JdwpEncoder<'a> {
+    /// Creates a new decoder with a given codec
+    pub fn new(codec: &'a JdwpCodec) -> Self {
+        Self {
+            codec,
+            data: BytesMut::new(),
+        }
+    }
+
+    /// Decodes the next jdwp value
+    pub fn put<T: JdwpEncodable>(&mut self, to_encoded: &T) {
+        to_encoded.encode(self)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::codec::{JdwpCodec, JdwpDecoder, JdwpEncoder};
+    use crate::id_sizes::IdSizes;
+    use jdwp_types::{Id, Object, ObjectId};
+
+    #[test]
+    fn encode_special_ids() {
+        let id: Id<Object> = Id::new(101);
+        let codec = JdwpCodec::new(IdSizes::new(6, 6, 6, 6));
+        let mut encoder= JdwpEncoder::new(&codec);
+        encoder.put(&id);
+        assert_eq!(encoder.data.len(), 6);
+        assert_eq!(&encoder.data[..], &[0, 0, 0, 0, 0, 101]);
+        let mut decoder = JdwpDecoder::new(&codec, encoder.data.freeze());
+        let decoded_id = decoder.get::<ObjectId>().expect("could not decode objectid");
+        assert_eq!(decoded_id, id);
+    }
+
+    #[test]
+    fn encode_special_ids_out_of_bounds() {
+        let id: Id<Object> = Id::new(u64::MAX);
+        let codec = JdwpCodec::new(IdSizes::new(6, 6, 6, 6));
+        let mut encoder= JdwpEncoder::new(&codec);
+        encoder.put(&id);
+        assert_eq!(encoder.data.len(), 6);
+        let mut decoder = JdwpDecoder::new(&codec, encoder.data.freeze());
+        let decoded_id = decoder.get::<ObjectId>().expect("could not decode objectid");
+        assert_ne!(decoded_id, id);
+        assert_eq!(decoded_id, Id::new(!(0xFFFF << 48)));
+    }
 }

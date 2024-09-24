@@ -28,7 +28,7 @@ macro_rules! tagged_type {
         impl TryFrom<$repr_ty> for $name {
             type Error = $crate::UnknownTagError<$repr_ty>;
 
-            fn try_from(value: $repr_ty) -> Result<Self, Self::Error> {
+            fn try_from(value: $repr_ty) -> Result<Self, $crate::UnknownTagError<$repr_ty>> {
                 let tag = match value {
                     $(
                     $val => $name::$var,
