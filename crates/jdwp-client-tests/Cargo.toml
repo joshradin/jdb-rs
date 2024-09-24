@@ -1,0 +1,20 @@
+[package]
+name = "jdwp-client-tests"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+categories.workspace = true
+
+[dependencies]
+jdwp-client = { version = "0.0.0", path = "../jdwp-client"}
+tokio = { version = "1.40.0", features = ["rt", "io-util", "net"] }
+tokio-util = { version = "0.7.12", features = ["io"] }
+regex = "1.10.6"
+tracing = "0.1.40"
+
+[dev-dependencies]
+tokio = { version = "1.40.0", features = ["full", "tracing"] }
+test-log = { version = "0.2.16", features = ["trace"] }
