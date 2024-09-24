@@ -6,6 +6,7 @@
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
 
+use std::ffi::c_double;
 pub use ids::*;
 pub use constants::*;
 use thiserror::Error;
@@ -57,6 +58,27 @@ pub struct Location {
 
 /// Represents any Jdwp value, either a primitive or an Id type
 pub trait JdwpValue {}
+
+/// Any value
+#[derive(Debug, Clone)]
+pub enum Value {
+    Array(ArrayId),
+    Byte(Byte),
+    Boolean(bool),
+    Char(u16),
+    Object(ObjectId),
+    Float(f32),
+    Double(f64),
+    Int(i32),
+    Long(i64),
+    Short(i16),
+    Void,
+    String(StringId),
+    Thread(ThreadId),
+    ThreadGroup(ThreadGroupId),
+    ClassLoader(ClassLoaderId),
+    ClassObject(ClassObjectId)
+}
 
 /// Unknown tag constant
 #[derive(Debug, Error)]

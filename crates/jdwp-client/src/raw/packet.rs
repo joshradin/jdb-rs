@@ -1,4 +1,5 @@
 use bitfield::bitfield;
+use bytes::Bytes;
 use private::Sealed;
 
 pub const MAX_PACKET_LENGTH: usize = 1 << 14;
@@ -92,7 +93,7 @@ pub enum AnyRawPacket {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RawPacket<T: HeaderVariableData> {
     header: Header<T>,
-    data: Box<[u8]>,
+    data: Bytes
 }
 
 impl<T: HeaderVariableData> RawPacket<T> {
@@ -101,13 +102,13 @@ impl<T: HeaderVariableData> RawPacket<T> {
         &self.header
     }
     /// Gets the data for this packet
-    pub fn data(&self) -> &[u8] {
+    pub fn data(&self) -> &Bytes {
         &self.data
     }
 }
 
 impl RawCommandPacket {
-    pub fn new_command(id: u32, command: CommandData, data: Vec<u8>) -> Self {
+    pub fn new_command(id: u32, command: CommandData, data: Bytes) -> Self {
         let length = (MIN_PACKET_LENGTH + data.len()) as u32;
         Self {
             header: Header {
@@ -116,13 +117,13 @@ impl RawCommandPacket {
                 flags: Flags::new_command(),
                 var: command,
             },
-            data: Box::from(data),
+            data
         }
     }
 }
 
 impl RawReplyPacket {
-    pub fn new_reply(id: u32, error_code: ErrorCode, data: Vec<u8>) -> Self {
+    pub fn new_reply(id: u32, error_code: ErrorCode, data: Bytes) -> Self {
         let length = (MIN_PACKET_LENGTH + data.len()) as u32;
         Self {
             header: Header {
@@ -131,7 +132,7 @@ impl RawReplyPacket {
                 flags: Flags::new_reply(),
                 var: error_code,
             },
-            data: Box::from(data),
+            data,
         }
     }
 }
@@ -183,13 +184,13 @@ impl HeaderVariableData for CommandData {
     fn from_u16(value: u16) -> Self {
         let split: [u8; 2] = value.to_be_bytes();
         Self {
-            command_set: split[1],
-            command: split[0],
+            command_set: split[0],
+            command: split[1],
         }
     }
 
     fn to_u16(&self) -> u16 {
-        let joined: [u8; 2] = [self.command, self.command_set];
+        let joined: [u8; 2] = [self.command_set,self.command];
         u16::from_be_bytes(joined)
     }
 }

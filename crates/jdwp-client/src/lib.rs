@@ -6,6 +6,7 @@ pub mod id_sizes;
 pub mod packet;
 mod raw;
 pub mod events;
+pub mod commands;
 
 pub use client::JdwpClient;
 

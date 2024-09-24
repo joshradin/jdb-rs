@@ -20,6 +20,7 @@ tokio-stream = "0.1.16"
 tokio-util = { version = "0.7.12", features = ["io", "net", "codec"] }
 tracing = "0.1.40"
 thiserror = "1.0.64"
+bytes = "1.7.2"
 
 [dependencies.tokio]
 version = "1.40.0"

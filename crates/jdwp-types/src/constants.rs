@@ -173,3 +173,60 @@ tagged_type! {
         ClassObject = 99,
     }
 }
+
+tagged_type! {
+    /// Suspension policy for the event
+    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+    pub enum SuspendPolicy {
+        /// Nothing in the VM was suspended
+        None = 0,
+        /// Only the thread where the event started is suspended
+        EventThread = 1,
+        /// All threads are suspended
+        All = 2
+    }
+}
+
+tagged_type! {
+    /// Status of class
+    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+    pub enum ClassStatus {
+        /// Nothing in the VM was suspended
+        None = 0,
+        /// Only the thread where the event started is suspended
+        EventThread = 1,
+        /// All threads are suspended
+        All = 2
+    }
+}
+
+tagged_type! {
+    /// Suspension policy for the event
+    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+    pub enum EventKind {
+        SingleStep = 1,
+        Breakpoint = 2,
+        FramePop = 3,
+        Exception = 4,
+        UserDefined = 5,
+        ThreadStart = 6,
+        ThreadDeath = 7,
+        ClassPrepare = 8,
+        ClassUnload = 9,
+        ClassLoad = 10,
+        FieldAccess = 20,
+        FieldModification = 21,
+        ExceptionCatch = 30,
+        MethodEntry = 40,
+        MethodExit = 41,
+        MethodExitWithReturnValue = 42,
+        MonitorContendedEnter = 43,
+        MonitorContendedEntered = 44,
+        MonitorWait = 45,
+        MonitorWaited = 46,
+        VmStart = 90,
+        VmDeath = 99,
+        /// Never sent across JDWP
+        VmDisconnected = 100,
+    }
+}

@@ -1,4 +1,5 @@
 use std::io::ErrorKind;
+use bytes::Bytes;
 use tokio_util::codec::{Decoder, Encoder};
 use tokio_util::bytes::{Buf, BufMut, BytesMut};
 use tracing::{instrument, trace};
@@ -11,13 +12,15 @@ pub struct RawCodec;
 impl<T: HeaderVariableData> Encoder<RawPacket<T>> for RawCodec {
     type Error = std::io::Error;
 
+    #[instrument(skip_all)]
     fn encode(&mut self, item: RawPacket<T>, dst: &mut BytesMut) -> Result<(), Self::Error> {
         let mut limited_buffer = dst.limit(item.header().length() as usize);
         limited_buffer.put_u32(item.header().length());
         limited_buffer.put_u32(item.header().id());
         limited_buffer.put_u8(item.header().flags().0);
         limited_buffer.put_u16(item.header().var().to_u16());
-        limited_buffer.put(item.data());
+        limited_buffer.put(item.data().clone());
+        trace!("encoded to {limited_buffer:?}");
         Ok(())
     }
 }
@@ -28,6 +31,7 @@ impl Decoder for RawCodec {
 
     #[instrument(skip_all, fields(buffered=src.len()))]
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        trace!("started trying to read raw packet...");
         if src.len() < 4 {
             // Not enough data to read length marker.
             trace!("current length of {} is not enough to read length of packet", src.len());
@@ -54,7 +58,9 @@ impl Decoder for RawCodec {
         let flag = Flags(raw_flag);
         trace!("got flag: {flag:?}");
         let raw_var = src.get_u16();
-        let data = src[..length - MIN_PACKET_LENGTH].to_vec();
+        let data_length = length - MIN_PACKET_LENGTH;
+        let data = Bytes::from(src[..data_length].to_vec());
+        src.advance(data_length);
         let packet = if flag.is_reply() {
             let error_code = ErrorCode::from_u16(raw_var);
             AnyRawPacket::Reply(RawReplyPacket::new_reply(id, error_code, data))
