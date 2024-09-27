@@ -10,10 +10,19 @@ pub struct IdSizes {
 }
 
 impl IdSizes {
-
     /// Creates a new id sizes object
-    pub fn new(object_id_size: usize, method_id_size: usize, field_id_size: usize, frame_id_size: usize) -> Self {
-        Self { object_id_size, method_id_size, field_id_size, frame_id_size }
+    pub fn new(
+        object_id_size: usize,
+        method_id_size: usize,
+        field_id_size: usize,
+        frame_id_size: usize,
+    ) -> Self {
+        Self {
+            object_id_size,
+            method_id_size,
+            field_id_size,
+            frame_id_size,
+        }
     }
 
     /// Gets the size (in bytes) of object ids
@@ -35,8 +44,6 @@ impl IdSizes {
     pub fn frame_id_size(&self) -> usize {
         self.frame_id_size
     }
-
-
 }
 
 impl Default for IdSizes {

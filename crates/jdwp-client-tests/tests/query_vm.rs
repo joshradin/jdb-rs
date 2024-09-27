@@ -1,7 +1,7 @@
-use jdwp_client_tests::JavaInstance;
+use jdb_test_fixtures::JavaInstance;
+use jdwp_client::commands::{AllClasses, AllThreads, ClassesBySignatures, Version};
 use std::io;
 use tracing::info;
-use jdwp_client::commands::{AllClasses, AllThreads, ClassesBySignatures, Version};
 
 #[test_log::test(tokio::test)]
 async fn test_get_jvm_version() -> io::Result<()> {
@@ -21,14 +21,15 @@ async fn test_get_string_class() -> io::Result<()> {
     let java_instance = JavaInstance::new(0, "BusyBeaver").await?;
     println!("started java instance");
     let mut client = java_instance.connect().await?;
-    let data = client.send(ClassesBySignatures {
-        signature: "Ljava/lang/String;".to_string(),
-    }).await?;
+    let data = client
+        .send(ClassesBySignatures {
+            signature: "Ljava/lang/String;".to_string(),
+        })
+        .await?;
     println!("data: {data:#?}");
     client.dispose().await?;
     Ok(())
 }
-
 
 #[test_log::test(tokio::test)]
 async fn test_get_all_classes() -> io::Result<()> {
@@ -62,13 +63,14 @@ async fn test_dispose() -> io::Result<()> {
     let java_instance = JavaInstance::new(0, "BusyBeaver").await?;
     println!("started java instance");
     let mut client = java_instance.connect().await?;
-    client.on_event(|_, e| async move {
-        println!("got event: {e:?}");
-        Ok(())
-    }).await;
+    client
+        .on_event(|_, e| async move {
+            println!("got event: {e:?}");
+            Ok(())
+        })
+        .await;
     client.dispose().await?;
     println!("client disposed");
 
     Ok(())
 }
-

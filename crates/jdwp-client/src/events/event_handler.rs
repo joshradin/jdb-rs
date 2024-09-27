@@ -1,4 +1,5 @@
 use crate::events::Event;
+use jdwp_types::SuspendPolicy;
 use pin_project::pin_project;
 use std::convert::Infallible;
 use std::future::Future;
@@ -7,7 +8,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::sync::{Mutex, OwnedMutexGuard};
-use jdwp_types::SuspendPolicy;
 
 pub trait EventHandler: Clone + Send + Sized + 'static {
     type Err;
@@ -30,8 +30,9 @@ where
     }
 }
 
-type OwnedEventHandlerFn<E> =
-    dyn Fn(SuspendPolicy, Event) -> Pin<Box<dyn Future<Output = Result<(), E>> + Send>> + Send + Sync;
+type OwnedEventHandlerFn<E> = dyn Fn(SuspendPolicy, Event) -> Pin<Box<dyn Future<Output = Result<(), E>> + Send>>
+    + Send
+    + Sync;
 
 #[must_use]
 pub struct OwnedEventHandler<E = Infallible> {
@@ -49,7 +50,7 @@ impl<E> Clone for OwnedEventHandler<E> {
 impl<E> OwnedEventHandler<E> {
     pub(crate) fn new<F>(func: F) -> Self
     where
-        F : EventHandler<Err=E> + Send + Sync + 'static,
+        F: EventHandler<Err = E> + Send + Sync + 'static,
     {
         let func = Arc::new(Mutex::new(move |policy: SuspendPolicy, event: Event| {
             let cloned = func.clone();
@@ -80,7 +81,11 @@ pub struct HandleEvent<E> {
 }
 
 impl<E> HandleEvent<E> {
-    fn new(handler: OwnedEventHandler<E>, suspend_policy: SuspendPolicy, event: Event) -> HandleEvent<E> {
+    fn new(
+        handler: OwnedEventHandler<E>,
+        suspend_policy: SuspendPolicy,
+        event: Event,
+    ) -> HandleEvent<E> {
         Self {
             owned: handler,
             state: HandleEventState::Init,
@@ -148,10 +153,10 @@ where
 #[cfg(test)]
 mod tests {
     use crate::events::*;
+    use jdwp_types::SuspendPolicy;
     use std::convert::Infallible;
     use std::sync::Arc;
     use tokio::sync::Mutex;
-    use jdwp_types::SuspendPolicy;
 
     #[tokio::test]
     async fn test_async_handle_event() {

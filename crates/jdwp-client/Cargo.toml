@@ -11,9 +11,7 @@ categories.workspace = true
 
 [dependencies]
 bitfield = { workspace = true }
-futures-core = { workspace = true }
-futures-sink = { workspace = true }
-futures-util = { workspace = true, features = ["sink"] }
+futures = { workspace = true }
 jdwp-types = { version = "0.0.0", path = "../jdwp-types" }
 pin-project = { workspace = true }
 tokio-stream = { workspace = true }
@@ -22,7 +20,7 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 bytes = { workspace = true }
 paste = { workspace = true }
-tokio={ workspace = true, features = ["io-util", "net", "rt", "sync"] }
+tokio = { workspace = true, features = ["io-util", "net", "rt", "sync"] }
 
 [dev-dependencies]
-tokio={ workspace = true, features = ["io-util", "net", "rt", "sync", "test-util", "macros"] }
+tokio = { workspace = true, features = ["io-util", "net", "rt", "sync", "test-util", "macros"] }

@@ -1,5 +1,6 @@
 [package]
 name = "jdi-rs"
+description = "Provides a 'jdi'-like interface over the jdwp protocol"
 authors.workspace = true
 license.workspace = true
 edition.workspace = true
@@ -9,5 +10,17 @@ repository.workspace = true
 categories.workspace = true
 
 [dependencies]
+tokio = { workspace = true, features = ["io-std", "io-util", "tracing", "fs", "rt"] }
+thiserror = { workspace = true }
+futures = { workspace = true }
+pin-project = { workspace = true }
+tracing.workspace = true
+
 jdwp-client = { version = "0.0.0", path = "../jdwp-client" }
 jdwp-types = { version = "0.0.0", path = "../jdwp-types" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "test-util"] }
+jdb-test-fixtures = { path = "../jdb-test-fixtures" }
+test-log = { workspace = true, features = ["trace"] }
+eyre = "0.6.12"

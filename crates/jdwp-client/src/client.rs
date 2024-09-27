@@ -7,9 +7,9 @@ use crate::raw::codec::RawCodec;
 use crate::raw::packet::{AnyRawPacket, RawCommandPacket, RawReplyPacket};
 use crate::raw::{RawJdwpClient, RawPacketSink};
 use bytes::BytesMut;
-use futures_util::task::SpawnExt;
-use futures_util::{SinkExt, StreamExt, TryStreamExt};
+use futures::{SinkExt, StreamExt};
 use std::collections::{HashMap, VecDeque};
+use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::io;
 use std::io::{Error, ErrorKind};
@@ -20,37 +20,46 @@ use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
+use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::{Mutex, RwLock};
-use tokio::sync::mpsc::error::TryRecvError;
 use tokio::task::{JoinHandle, JoinSet};
 use tokio_util::codec::{FramedRead, FramedWrite};
 use tracing::{debug, error, error_span, instrument, trace, warn, Instrument, Span};
 
+use crate::commands::{Dispose, IdSizes as IdSizesCommand};
+use crate::connect::JdwpTransport;
 use tokio::sync::oneshot::Receiver as OneshotReceiver;
 use tokio::sync::oneshot::Sender as OneshotSender;
-use crate::commands::{Dispose, IdSizes as IdSizesCommand};
 
 static JDWP_HANDSHAKE: &[u8; 14] = b"JDWP-Handshake";
 
 /// A non-blocking jdwp client
-pub struct JdwpClient {
+pub struct JdwpClient<T: JdwpTransport> {
     tasks: JoinSet<()>,
     event_handlers: Arc<RwLock<Vec<OwnedEventHandler<Error>>>>,
-    raw_packet_sink: Mutex<RawPacketSink>,
+    raw_packet_sink: Mutex<RawPacketSink<T::Output>>,
     next_id: AtomicU32,
     codec: Arc<RwLock<JdwpCodec>>,
     one_shots: Arc<RwLock<HashMap<u32, OneshotSender<RawReplyPacket>>>>,
 }
 
-
-impl JdwpClient {
-    /// Creates a new jdwp client over a tcp stream
-    pub async fn create(stream: TcpStream) -> io::Result<Self> {
-        let (input, output) = stream.into_split();
-        create_client(input, output).await
+impl<T: JdwpTransport> Debug for JdwpClient<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JdwpClient")
+            .field("tasks", &self.tasks)
+            .field("next_id", &self.next_id)
+            .field("codec", &self.codec)
+            .field("one_shots", &self.one_shots)
+            .finish()
     }
+}
 
+impl<Tr: JdwpTransport> JdwpClient<Tr> {
+    /// Creates a new jdwp client over a transport
+    pub async fn create(transport: Tr) -> io::Result<Self> {
+        create_client(transport).await
+    }
     /// Add an event handler for when events are received from the targeted JVM
     pub async fn on_event<E: EventHandler<Err = io::Error> + Sync>(&mut self, event_handler: E) {
         let mut event_handlers = self.event_handlers.write().await;
@@ -98,12 +107,13 @@ impl JdwpClient {
 }
 
 /// creates a client
-async fn create_client(
-    mut input: OwnedReadHalf,
-    mut output: OwnedWriteHalf,
-) -> io::Result<JdwpClient> {
+async fn create_client<T>(transport: T) -> io::Result<JdwpClient<T>>
+where
+    T: JdwpTransport,
+{
+    let (mut input, mut output) = transport.split_transport();
     handshake(&mut input, &mut output).await?;
-    let raw_client = RawJdwpClient::new(input, output);
+    let raw_client = RawJdwpClient::<T>::new(input, output);
     let event_handlers = Arc::new(RwLock::new(Vec::<OwnedEventHandler<io::Error>>::new()));
 
     let mut join_set = JoinSet::<()>::new();
@@ -113,7 +123,7 @@ async fn create_client(
         join_set.spawn(event_handling_loop(event_rx, event_handlers.clone()));
     }
 
-    let (raw_sink, mut raw_stream) = raw_client.into_split();
+    let (mut raw_stream, raw_sink) = raw_client.into_split();
     let codec = Arc::new(RwLock::new(JdwpCodec::default()));
     let one_shots = Arc::new(RwLock::new(
         HashMap::<u32, OneshotSender<RawReplyPacket>>::new(),
@@ -167,8 +177,7 @@ async fn create_client(
     };
 
     let id_sizes = client.send(IdSizesCommand).await?;
-    let mut codec = client.codec.write()
-                      .await;
+    let mut codec = client.codec.write().await;
     let new_id_sizes = IdSizes::new(
         id_sizes.object_id_size as usize,
         id_sizes.method_id_size as usize,
@@ -199,14 +208,12 @@ fn event_handling_loop(
                     Ok(events) => {
                         buffered.push_back(events);
                     }
-                    Err(TryRecvError::Empty) => {
-                    }
+                    Err(TryRecvError::Empty) => {}
                     Err(TryRecvError::Disconnected) => {
                         break;
                     }
                 }
             }
-
 
             let mut join_set = JoinSet::new();
             let event_handlers = event_handlers.read().await;

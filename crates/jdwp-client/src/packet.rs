@@ -7,5 +7,3 @@ pub trait JdwpCommand: Sized + JdwpEncodable {
 
     fn command_data() -> CommandData;
 }
-
-

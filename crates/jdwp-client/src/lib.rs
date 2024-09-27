@@ -2,11 +2,12 @@
 
 mod client;
 pub mod codec;
+pub mod commands;
+pub mod connect;
+pub mod events;
 pub mod id_sizes;
 pub mod packet;
 mod raw;
-pub mod events;
-pub mod commands;
 
 pub use client::JdwpClient;
 

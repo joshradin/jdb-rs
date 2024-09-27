@@ -208,8 +208,9 @@ impl JdwpDecodable for Event {
             EventKind::FieldAccess => Event::FieldAccess {
                 request_id: decoder.get()?,
                 thread: decoder.get()?,
-                ref_type_tag: decoder.get::<Byte>()
-                                     .and_then(|b| Ok(TypeTag::try_from(b)?))?,
+                ref_type_tag: decoder
+                    .get::<Byte>()
+                    .and_then(|b| Ok(TypeTag::try_from(b)?))?,
                 type_id: decoder.get()?,
                 field_id: decoder.get()?,
                 object: decoder.get()?,
@@ -217,8 +218,9 @@ impl JdwpDecodable for Event {
             EventKind::FieldModification => Event::FieldModification {
                 request_id: decoder.get()?,
                 thread: decoder.get()?,
-                ref_type_tag: decoder.get::<Byte>()
-                                     .and_then(|b| Ok(TypeTag::try_from(b)?))?,
+                ref_type_tag: decoder
+                    .get::<Byte>()
+                    .and_then(|b| Ok(TypeTag::try_from(b)?))?,
                 type_id: decoder.get()?,
                 field_id: decoder.get()?,
                 object: decoder.get()?,

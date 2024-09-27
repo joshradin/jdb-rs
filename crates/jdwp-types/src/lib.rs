@@ -6,15 +6,15 @@
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
 
-use std::ffi::c_double;
-pub use ids::*;
-pub use constants::*;
-use thiserror::Error;
 use crate::private::Repr;
+pub use constants::*;
+pub use ids::*;
+use std::ffi::c_double;
+use thiserror::Error;
 
+mod constants;
 mod ids;
 mod macros;
-mod constants;
 
 /// A byte value
 pub type Byte = u8;
@@ -61,6 +61,7 @@ pub trait JdwpValue {}
 
 /// Any value
 #[derive(Debug, Clone)]
+#[allow(missing_docs)]
 pub enum Value {
     Array(ArrayId),
     Byte(Byte),
@@ -77,21 +78,21 @@ pub enum Value {
     Thread(ThreadId),
     ThreadGroup(ThreadGroupId),
     ClassLoader(ClassLoaderId),
-    ClassObject(ClassObjectId)
+    ClassObject(ClassObjectId),
 }
 
 /// Unknown tag constant
 #[derive(Debug, Error)]
 #[error("Unknown tag constant: {0}")]
-pub struct UnknownTagError<T : Repr>(T);
+pub struct UnknownTagError<T: Repr>(T);
 
 mod private {
     use std::fmt::Display;
 
     pub trait Identifiable {}
-    pub trait Repr : Display {}
+    pub trait Repr: Display {}
 
-    impl Repr for u8{}
+    impl Repr for u8 {}
     impl Repr for u16 {}
 }
 
@@ -110,4 +111,3 @@ mod tests {
             .expect_err("converting to ThreadId should fail because its an object id");
     }
 }
-

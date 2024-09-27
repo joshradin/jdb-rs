@@ -1,15 +1,18 @@
 //! Raw data straight from the source
 
+use crate::connect::JdwpTransport;
 use crate::raw::codec::RawCodec;
 use crate::raw::packet::{AnyRawPacket, RawCommandPacket};
-use futures_core::Stream;
-use futures_sink::Sink;
+use futures::Sink;
+use futures::Stream;
+use pin_project::pin_project;
 use std::io;
 use std::io::Error;
+use std::marker::PhantomData;
 use std::pin::{pin, Pin};
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use pin_project::pin_project;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::sync::mpsc::{unbounded_channel, Receiver, UnboundedReceiver};
 use tokio::task::JoinHandle;
@@ -23,11 +26,10 @@ pub mod packet;
 /// A raw packet sink
 #[derive(Debug)]
 #[pin_project]
-pub struct RawPacketSink(#[pin] FramedWrite<OwnedWriteHalf, RawCodec>);
+pub struct RawPacketSink<I: AsyncWrite + Unpin>(#[pin] FramedWrite<I, RawCodec>);
 
-impl Sink<RawCommandPacket> for RawPacketSink {
+impl<I: AsyncWrite + Unpin> Sink<RawCommandPacket> for RawPacketSink<I> {
     type Error = Error;
-
 
     fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Sink::<RawCommandPacket>::poll_ready(self.project().0, cx)
@@ -38,7 +40,6 @@ impl Sink<RawCommandPacket> for RawPacketSink {
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-
         Sink::<RawCommandPacket>::poll_flush(self.project().0, cx)
     }
 
@@ -50,12 +51,13 @@ impl Sink<RawCommandPacket> for RawPacketSink {
 /// A raw packet stream
 #[derive(Debug)]
 #[pin_project]
-pub struct RawPacketStream {
+pub struct RawPacketStream<O> {
     sender: UnboundedReceiver<Result<AnyRawPacket, Error>>,
     task: JoinHandle<()>,
+    _phantom: PhantomData<O>,
 }
 
-impl Stream for RawPacketStream {
+impl<O> Stream for RawPacketStream<O> {
     type Item = Result<AnyRawPacket, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -64,15 +66,18 @@ impl Stream for RawPacketStream {
 }
 /// The raw client
 #[derive(Debug)]
-pub struct RawJdwpClient {
-    sink: FramedWrite<OwnedWriteHalf, RawCodec>,
+pub struct RawJdwpClient<T: JdwpTransport> {
+    sink: FramedWrite<T::Output, RawCodec>,
     sender: UnboundedReceiver<Result<AnyRawPacket, Error>>,
     task: JoinHandle<()>,
 }
 
-impl RawJdwpClient {
+impl<T> RawJdwpClient<T>
+where
+    T: JdwpTransport,
+{
     /// Creates a new RawJdwpClient
-    pub fn new(input: OwnedReadHalf, output: OwnedWriteHalf) -> Self {
+    pub fn new(input: T::Input, output: T::Output) -> Self {
         let codec = RawCodec::default();
         let raw_sink = FramedWrite::new(output, codec);
         let mut raw_stream = FramedRead::new(input, codec);
@@ -95,10 +100,17 @@ impl RawJdwpClient {
     }
 
     /// Splits into the sink and the stream
-    pub fn into_split(self) -> (RawPacketSink, RawPacketStream) {
+    pub fn into_split(self) -> (RawPacketStream<T::Input>, RawPacketSink<T::Output>) {
         let Self { sink, sender, task } = self;
         let sink = sink;
         let sender = sender;
-        (RawPacketSink(sink), RawPacketStream { sender, task })
+        (
+            RawPacketStream {
+                sender,
+                task,
+                _phantom: PhantomData,
+            },
+            RawPacketSink(sink),
+        )
     }
 }

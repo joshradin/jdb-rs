@@ -58,7 +58,6 @@ impl ErrorCode {
 
 impl Sealed for ErrorCode {}
 
-
 /// All valid header variable data must be representable by a u16
 pub trait HeaderVariableData: Sealed {
     fn from_u16(value: u16) -> Self;
@@ -93,7 +92,7 @@ pub enum AnyRawPacket {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RawPacket<T: HeaderVariableData> {
     header: Header<T>,
-    data: Bytes
+    data: Bytes,
 }
 
 impl<T: HeaderVariableData> RawPacket<T> {
@@ -117,7 +116,7 @@ impl RawCommandPacket {
                 flags: Flags::new_command(),
                 var: command,
             },
-            data
+            data,
         }
     }
 }
@@ -190,7 +189,7 @@ impl HeaderVariableData for CommandData {
     }
 
     fn to_u16(&self) -> u16 {
-        let joined: [u8; 2] = [self.command_set,self.command];
+        let joined: [u8; 2] = [self.command_set, self.command];
         u16::from_be_bytes(joined)
     }
 }

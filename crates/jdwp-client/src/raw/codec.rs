@@ -1,9 +1,12 @@
-use std::io::ErrorKind;
+use crate::raw::packet::{
+    AnyRawPacket, CommandData, ErrorCode, Flags, HeaderVariableData, RawCommandPacket, RawPacket,
+    RawReplyPacket, MAX_PACKET_LENGTH, MIN_PACKET_LENGTH,
+};
 use bytes::Bytes;
-use tokio_util::codec::{Decoder, Encoder};
+use std::io::ErrorKind;
 use tokio_util::bytes::{Buf, BufMut, BytesMut};
+use tokio_util::codec::{Decoder, Encoder};
 use tracing::{instrument, trace};
-use crate::raw::packet::{AnyRawPacket, CommandData, ErrorCode, Flags, HeaderVariableData, RawCommandPacket, RawPacket, RawReplyPacket, MAX_PACKET_LENGTH, MIN_PACKET_LENGTH};
 
 /// Codec for encoding and decoding jdwp packets
 #[derive(Debug, Default, Copy, Clone)]
@@ -34,7 +37,10 @@ impl Decoder for RawCodec {
         trace!("started trying to read raw packet...");
         if src.len() < 4 {
             // Not enough data to read length marker.
-            trace!("current length of {} is not enough to read length of packet", src.len());
+            trace!(
+                "current length of {} is not enough to read length of packet",
+                src.len()
+            );
             return Ok(None);
         }
         let length = u32::from_be_bytes(src[..4].try_into().unwrap()) as usize;
@@ -42,11 +48,17 @@ impl Decoder for RawCodec {
         if length > MAX_PACKET_LENGTH {
             return Err(std::io::Error::new(
                 ErrorKind::InvalidData,
-                format!("{} is larger than max packet size: {}", length, MAX_PACKET_LENGTH),
-            ))
+                format!(
+                    "{} is larger than max packet size: {}",
+                    length, MAX_PACKET_LENGTH
+                ),
+            ));
         }
         if src.len() < length {
-            trace!("current length of {} is not enough to read length of packet", src.len());
+            trace!(
+                "current length of {} is not enough to read length of packet",
+                src.len()
+            );
             src.reserve(length - src.len());
             return Ok(None);
         }

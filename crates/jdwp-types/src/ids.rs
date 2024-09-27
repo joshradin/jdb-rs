@@ -1,8 +1,8 @@
 use std::any::type_name;
-use thiserror::Error;
 use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter, Pointer};
 use std::marker::PhantomData;
+use thiserror::Error;
 
 /// Uniquely identifies an object in the target VM.
 ///
@@ -55,7 +55,6 @@ impl<T: Identifiable> From<Id<T>> for u64 {
     }
 }
 
-
 /// Wrong type tag was found
 #[derive(Debug, Error)]
 #[error("Tag mismatch, expected {expected:?} but got {got:?}")]
@@ -107,8 +106,6 @@ impl PartialOrd for TaggedObjectId {
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Id<T: Identifiable>(u64, PhantomData<T>);
 
-
-
 impl<T: Identifiable> Id<T> {
     /// Creates a new [Id]. Since the maximum byte size of an [Id] is an u64, we can always use that as
     /// input for creating one. However, there's no guarantee that this [Id] is valid within the given
@@ -122,8 +119,7 @@ impl<T: Identifiable> Id<T> {
     }
 }
 
-impl<T: Identifiable> JdwpValue for Id<T> {
-}
+impl<T: Identifiable> JdwpValue for Id<T> {}
 
 impl<T: Identifiable + Debug> Debug for Id<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -132,7 +128,6 @@ impl<T: Identifiable + Debug> Debug for Id<T> {
             .finish()
     }
 }
-
 
 macro_rules! type_to_tagged {
     ($(
@@ -175,12 +170,10 @@ type_to_tagged!(
     ArrayId: Tag::Array
 );
 
-
-
-use crate::private::Identifiable;
-pub use identifiable_types::*;
-use crate::{JdwpValue, UnknownTagError};
 use crate::constants::Tag;
+use crate::private::Identifiable;
+use crate::{JdwpValue, UnknownTagError};
+pub use identifiable_types::*;
 
 mod identifiable_types {
     use crate::private::Identifiable;

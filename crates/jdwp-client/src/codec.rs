@@ -26,7 +26,7 @@ impl JdwpCodec {
         self.id_sizes
     }
 
-    pub(crate) fn id_sizes_mut(&mut self) ->&mut IdSizes {
+    pub(crate) fn id_sizes_mut(&mut self) -> &mut IdSizes {
         &mut self.id_sizes
     }
 }
@@ -39,7 +39,7 @@ pub trait JdwpEncodable {
 
 /// Decodable from a byte buffer
 pub trait JdwpDecodable: Sized {
-    type Err : Error;
+    type Err: Error;
 
     fn decode(decoder: &mut JdwpDecoder) -> Result<Self, Self::Err>;
 }
@@ -219,7 +219,7 @@ encdec_id! {
     FrameId: frame_id_size;
 }
 
-impl<T: JdwpDecodable<Err =DecodeJdwpDataError>> JdwpDecodable for Vec<T> {
+impl<T: JdwpDecodable<Err = DecodeJdwpDataError>> JdwpDecodable for Vec<T> {
     type Err = DecodeJdwpDataError;
 
     fn decode(decoder: &mut JdwpDecoder) -> Result<Self, Self::Err> {
@@ -267,9 +267,8 @@ pub enum DecodeJdwpDataError {
     #[error(transparent)]
     IllegalByteTag(#[from] UnknownTagError<u8>),
     #[error(transparent)]
-    Utf8DecodeError(#[from] FromUtf8Error)
+    Utf8DecodeError(#[from] FromUtf8Error),
 }
-
 
 #[derive(Debug)]
 pub struct JdwpEncoder<'a> {
@@ -302,12 +301,14 @@ mod test {
     fn encode_special_ids() {
         let id: Id<Object> = Id::new(101);
         let codec = JdwpCodec::new(IdSizes::new(6, 6, 6, 6));
-        let mut encoder= JdwpEncoder::new(&codec);
+        let mut encoder = JdwpEncoder::new(&codec);
         encoder.put(&id);
         assert_eq!(encoder.data.len(), 6);
         assert_eq!(&encoder.data[..], &[0, 0, 0, 0, 0, 101]);
         let mut decoder = JdwpDecoder::new(&codec, encoder.data.freeze());
-        let decoded_id = decoder.get::<ObjectId>().expect("could not decode objectid");
+        let decoded_id = decoder
+            .get::<ObjectId>()
+            .expect("could not decode objectid");
         assert_eq!(decoded_id, id);
     }
 
@@ -315,11 +316,13 @@ mod test {
     fn encode_special_ids_out_of_bounds() {
         let id: Id<Object> = Id::new(u64::MAX);
         let codec = JdwpCodec::new(IdSizes::new(6, 6, 6, 6));
-        let mut encoder= JdwpEncoder::new(&codec);
+        let mut encoder = JdwpEncoder::new(&codec);
         encoder.put(&id);
         assert_eq!(encoder.data.len(), 6);
         let mut decoder = JdwpDecoder::new(&codec, encoder.data.freeze());
-        let decoded_id = decoder.get::<ObjectId>().expect("could not decode objectid");
+        let decoded_id = decoder
+            .get::<ObjectId>()
+            .expect("could not decode objectid");
         assert_ne!(decoded_id, id);
         assert_eq!(decoded_id, Id::new(!(0xFFFF << 48)));
     }

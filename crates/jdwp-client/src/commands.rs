@@ -1,8 +1,6 @@
 //! All JDB commands
 
-use crate::codec::{
-    DecodeJdwpDataError, JdwpDecodable, JdwpDecoder, JdwpEncodable, JdwpEncoder,
-};
+use crate::codec::{DecodeJdwpDataError, JdwpDecodable, JdwpDecoder, JdwpEncodable, JdwpEncoder};
 use crate::packet::JdwpCommand;
 use crate::raw::packet::CommandData;
 use bytes::BufMut;
@@ -223,7 +221,6 @@ pub struct ClassReferenceWithSignature {
 impl JdwpDecodable for ClassReferenceWithSignature {
     type Err = DecodeJdwpDataError;
 
-    #[instrument(ret, skip_all)]
     fn decode(decoder: &mut JdwpDecoder) -> Result<Self, Self::Err> {
         Ok(Self {
             type_tag: decoder
@@ -260,7 +257,6 @@ command! {
     #[derive(Debug)]
     pub struct Dispose;
 }
-
 
 command! {
     command_set: 1;

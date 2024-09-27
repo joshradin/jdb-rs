@@ -1,7 +1,7 @@
 //! constants
 
-use bitfield::bitfield;
 use crate::macros::tagged_type;
+use bitfield::bitfield;
 
 tagged_type! {
     repr: u16;

@@ -1,0 +1,17 @@
+[package]
+name = "jdb-test-fixtures"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+jdwp-client = { version = "0.0.0", path = "../jdwp-client"}
+tokio = { workspace = true, features = ["rt", "io-util", "net", "process"] }
+tokio-util = { workspace = true, features = ["io"] }
+regex = { workspace = true }
+tracing = { workspace = true }
